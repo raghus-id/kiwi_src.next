@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ namespace extensions {
 // A helper object for extensions-related management for Browser* objects.
 class ExtensionBrowserWindowHelper : public ExtensionRegistryObserver {
  public:
-  // Note: |browser| must outlive this object.
+  // Note: `browser` must outlive this object.
   explicit ExtensionBrowserWindowHelper(Browser* browser);
 
   ExtensionBrowserWindowHelper(const ExtensionBrowserWindowHelper&) = delete;

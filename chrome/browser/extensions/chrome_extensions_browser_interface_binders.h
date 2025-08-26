@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,9 @@
 #include "mojo/public/cpp/bindings/binder_map.h"
 
 namespace content {
+class BrowserContext;
 class RenderFrameHost;
+struct ServiceWorkerVersionBaseInfo;
 }
 
 namespace extensions {
@@ -18,6 +20,12 @@ class Extension;
 void PopulateChromeFrameBindersForExtension(
     mojo::BinderMapWithContext<content::RenderFrameHost*>* binder_map,
     content::RenderFrameHost* render_frame_host,
+    const Extension* extension);
+
+void PopulateChromeServiceWorkerBindersForExtension(
+    mojo::BinderMapWithContext<const content::ServiceWorkerVersionBaseInfo&>*
+        binder_map,
+    content::BrowserContext* browser_context,
     const Extension* extension);
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <stdint.h>
 
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "base/values.h"
 #include "net/base/net_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 
@@ -25,6 +25,11 @@ struct NET_EXPORT_PRIVATE ConnectionEndpointMetadata {
   using EchConfigList = std::vector<uint8_t>;
 
   ConnectionEndpointMetadata();
+  ConnectionEndpointMetadata(
+      std::vector<std::string> supported_protocol_alpns,
+      EchConfigList ech_config_list,
+      std::string target_name,
+      std::vector<std::vector<uint8_t>> trust_anchor_ids);
   ~ConnectionEndpointMetadata();
 
   ConnectionEndpointMetadata(const ConnectionEndpointMetadata&);
@@ -33,13 +38,10 @@ struct NET_EXPORT_PRIVATE ConnectionEndpointMetadata {
   ConnectionEndpointMetadata(ConnectionEndpointMetadata&&);
   ConnectionEndpointMetadata& operator=(ConnectionEndpointMetadata&&) = default;
 
-  bool operator==(const ConnectionEndpointMetadata& other) const {
-    return std::tie(supported_protocol_alpns, ech_config_list) ==
-           std::tie(other.supported_protocol_alpns, other.ech_config_list);
-  }
+  bool operator==(const ConnectionEndpointMetadata& other) const = default;
 
   base::Value ToValue() const;
-  static absl::optional<ConnectionEndpointMetadata> FromValue(
+  static std::optional<ConnectionEndpointMetadata> FromValue(
       const base::Value& value);
 
   // ALPN strings for protocols supported by the endpoint. Empty for default
@@ -48,6 +50,16 @@ struct NET_EXPORT_PRIVATE ConnectionEndpointMetadata {
 
   // If not empty, TLS Encrypted Client Hello config for the service.
   EchConfigList ech_config_list;
+
+  // The target domain name of this metadata.
+  std::string target_name;
+
+  // A list of TLS Trust Anchor IDs advertised by the server, indicating
+  // different options for trust anchors that it can offer. The client can
+  // choose a subset of these to advertise in the TLS ClientHello to guide the
+  // server as to which certificate it should serve so that the client will
+  // trust it.
+  std::vector<std::vector<uint8_t>> trust_anchor_ids;
 };
 
 }  // namespace net

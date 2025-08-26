@@ -1,6 +1,13 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include <array>
+
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
 
 // This test validates that the ProcessSingleton class properly makes sure
 // that there is only one main browser process.
@@ -14,13 +21,14 @@
 
 #include <memory>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
+#include "base/process/kill.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "base/process/process_iterator.h"
@@ -78,16 +86,12 @@ class ChromeStarter : public base::RefCountedThreadSafe<ChromeStarter> {
   void StartChrome(base::WaitableEvent* start_event, bool first_run) {
     base::CommandLine command_line_for_relaunch(
         initial_command_line_for_relaunch_.GetProgram());
-    test_launcher_utils::RemoveCommandLineSwitch(
-        initial_command_line_for_relaunch_, switches::kUserDataDir,
-        &command_line_for_relaunch);
+    command_line_for_relaunch.RemoveSwitch(switches::kUserDataDir);
     command_line_for_relaunch.AppendSwitchPath(switches::kUserDataDir,
                                                user_data_dir_);
 
     if (first_run) {
-      base::CommandLine tmp_command_line = command_line_for_relaunch;
-      test_launcher_utils::RemoveCommandLineSwitch(
-          tmp_command_line, switches::kNoFirstRun, &command_line_for_relaunch);
+      command_line_for_relaunch.RemoveSwitch(switches::kNoFirstRun);
       command_line_for_relaunch.AppendSwitch(switches::kForceFirstRun);
     }
 
@@ -125,7 +129,7 @@ class ChromeStarter : public base::RefCountedThreadSafe<ChromeStarter> {
  private:
   friend class base::RefCountedThreadSafe<ChromeStarter>;
 
-  ~ChromeStarter() {}
+  ~ChromeStarter() = default;
 
   base::TimeDelta timeout_;
   base::FilePath user_data_dir_;
@@ -203,8 +207,8 @@ class ProcessSingletonTest : public InProcessBrowserTest {
 
   // The idea is to start chrome from multiple threads all at once.
   static const size_t kNbThreads = 5;
-  scoped_refptr<ChromeStarter> chrome_starters_[kNbThreads];
-  std::unique_ptr<base::Thread> chrome_starter_threads_[kNbThreads];
+  std::array<scoped_refptr<ChromeStarter>, kNbThreads> chrome_starters_;
+  std::array<std::unique_ptr<base::Thread>, kNbThreads> chrome_starter_threads_;
 
   // The event that will get all threads to wake up simultaneously and try
   // to start a chrome process at the same time.
@@ -255,7 +259,8 @@ IN_PROC_BROWSER_TEST_F(ProcessSingletonTest, MAYBE_StartupRaceCondition) {
     // Here we prime all the threads with a ChromeStarter that will wait for
     // our signal to launch its chrome process.
     for (size_t i = 0; i < kNbThreads; ++i) {
-      ASSERT_NE(static_cast<ChromeStarter*>(NULL), chrome_starters_[i].get());
+      ASSERT_NE(static_cast<ChromeStarter*>(nullptr),
+                chrome_starters_[i].get());
       chrome_starters_[i]->Reset();
 
       ASSERT_TRUE(chrome_starter_threads_[i]->IsRunning());
@@ -309,10 +314,9 @@ IN_PROC_BROWSER_TEST_F(ProcessSingletonTest, MAYBE_StartupRaceCondition) {
         // exit code, which we also allow, though it would be ideal if that
         // never happened.
         // TODO(mattm): investigate why PROFILE_IN_USE occurs sometimes.
-        EXPECT_THAT(
-            chrome_starters_[starter_index]->exit_code_,
-            AnyOf(Eq(chrome::RESULT_CODE_PROFILE_IN_USE),
-                  Eq(chrome::RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED)));
+        EXPECT_THAT(chrome_starters_[starter_index]->exit_code_,
+                    AnyOf(Eq(CHROME_RESULT_CODE_PROFILE_IN_USE),
+                          Eq(CHROME_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED)));
       } else {
         // But we let the last loop turn finish so that we can properly
         // kill all remaining processes. Starting with this one...
