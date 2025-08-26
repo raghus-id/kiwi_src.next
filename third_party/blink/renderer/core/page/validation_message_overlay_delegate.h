@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,10 @@
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/text/text_direction.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
+
+namespace gfx {
+class Rect;
+}
 
 namespace blink {
 
@@ -54,7 +58,7 @@ class CORE_EXPORT ValidationMessageOverlayDelegate
 
  private:
   LocalFrameView& FrameView() const;
-  void WriteDocument(SharedBuffer*);
+  void WriteDocument(SegmentedBuffer&);
   Element& GetElementById(const AtomicString&) const;
   void AdjustBubblePosition(const gfx::Rect& view_rect);
 
@@ -62,6 +66,8 @@ class CORE_EXPORT ValidationMessageOverlayDelegate
   Persistent<Page> page_;
   Persistent<ChromeClient> chrome_client_;
 
+  // TODO(crbug.com/334963179): Remove bubble_size_ when the
+  // ValidationBubbleNoForcedLayout flag is removed.
   gfx::Size bubble_size_;
 
   // A page which triggered this validation message.
@@ -72,6 +78,10 @@ class CORE_EXPORT ValidationMessageOverlayDelegate
   String sub_message_;
   TextDirection message_dir_;
   TextDirection sub_message_dir_;
+
+  // Used by CreatePage() to determine if this has been deleted in the middle of
+  // the function.
+  bool* destroyed_ptr_ = nullptr;
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/app_icon_loader_delegate.h"
-
-class Profile;
 
 // Base class that loads and updates Chrome app's icons.
 // TODO(khmel): Switch to using ChromeAppIconService instead ChromeAppIconLoader
@@ -40,16 +38,12 @@ class AppIconLoader {
 
  protected:
   AppIconLoader();
-  AppIconLoader(Profile* profile,
-                int icon_size_in_dip,
-                AppIconLoaderDelegate* delegate);
+  AppIconLoader(int icon_size_in_dip, AppIconLoaderDelegate* delegate);
 
-  Profile* profile() { return profile_; }
   int icon_size_in_dip() const { return icon_size_in_dip_; }
   AppIconLoaderDelegate* delegate() { return delegate_; }
 
  private:
-  const raw_ptr<Profile> profile_ = nullptr;
   const int icon_size_in_dip_ = 0;
 
   // The delegate object which receives the icon images. No ownership.

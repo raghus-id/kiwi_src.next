@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,18 +29,18 @@ scoped_refptr<Extension> CreateTestExtension(const std::string& name,
 #endif
   path = path.AppendASCII(name);
 
-  base::DictionaryValue manifest;
-  manifest.SetStringKey("name", name);
-  manifest.SetStringKey("version", "1");
-  manifest.SetIntKey("manifest_version", 2);
+  auto manifest = base::Value::Dict()
+                      .Set("name", name)
+                      .Set("version", "1")
+                      .Set("manifest_version", 2);
 
   if (!launch_url.empty())
-    manifest.SetStringPath("app.launch.web_url", launch_url);
+    manifest.SetByDottedPath("app.launch.web_url", launch_url);
 
   if (!extent.empty()) {
-    base::Value urls(base::Value::Type::LIST);
+    base::Value::List urls;
     urls.Append(extent);
-    manifest.SetPath("app.urls", std::move(urls));
+    manifest.SetByDottedPath("app.urls", std::move(urls));
   }
 
   std::string error;
@@ -87,23 +87,21 @@ TEST(ExtensionSetTest, ExtensionSet) {
   EXPECT_EQ(3u, extensions.size());
 
   // Get extension by its chrome-extension:// URL
-  EXPECT_EQ(
-      ext2.get(),
-      extensions.GetExtensionOrAppByURL(ext2->GetResourceURL("test.html")));
-  EXPECT_EQ(
-      ext3.get(),
-      extensions.GetExtensionOrAppByURL(ext3->GetResourceURL("test.html")));
-  EXPECT_EQ(
-      ext4.get(),
-      extensions.GetExtensionOrAppByURL(ext4->GetResourceURL("test.html")));
+  EXPECT_EQ(ext2.get(), extensions.GetExtensionOrAppByURL(
+                            ext2->ResolveExtensionURL("test.html")));
+  EXPECT_EQ(ext3.get(), extensions.GetExtensionOrAppByURL(
+                            ext3->ResolveExtensionURL("test.html")));
+  EXPECT_EQ(ext4.get(), extensions.GetExtensionOrAppByURL(
+                            ext4->ResolveExtensionURL("test.html")));
 
   // Get extension by a filesystem or blob URL within it.
   GURL ext2_filesystem_url =
-      GURL("filesystem:" + ext2->GetResourceURL("test.html").spec());
+      GURL("filesystem:" + ext2->ResolveExtensionURL("test.html").spec());
   EXPECT_EQ(ext2.get(), extensions.GetExtensionOrAppByURL(ext2_filesystem_url));
   EXPECT_EQ(ext2->id(),
             extensions.GetExtensionOrAppIDByURL(ext2_filesystem_url));
-  GURL ext3_blob_url = GURL("blob:" + ext3->GetResourceURL("test.html").spec());
+  GURL ext3_blob_url =
+      GURL("blob:" + ext3->ResolveExtensionURL("test.html").spec());
   EXPECT_EQ(ext3.get(), extensions.GetExtensionOrAppByURL(ext3_blob_url));
   EXPECT_EQ(ext3->id(), extensions.GetExtensionOrAppIDByURL(ext3_blob_url));
 
@@ -124,7 +122,7 @@ TEST(ExtensionSetTest, ExtensionSet) {
                             GURL("filesystem:http://dev.chromium.org/foo")));
   EXPECT_EQ(nullptr, extensions.GetExtensionOrAppByURL(
                          GURL("filesystem:http://code.google.com/foo")));
-  // TODO(crbug/852162): Support blob URLs. This should return ext3.
+  // TODO(crbug.com/41394231): Support blob URLs. This should return ext3.
   EXPECT_EQ(nullptr, extensions.GetExtensionOrAppByURL(
                          GURL("blob:http://dev.chromium.org/abcd")));
 

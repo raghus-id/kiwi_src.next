@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include <stdint.h>
 
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/values.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_export.h"
 
@@ -56,11 +56,7 @@ class NET_EXPORT AddressList {
   // Returns a copy of `list` with port on each element set to |port|.
   static AddressList CopyWithPort(const AddressList& list, uint16_t port);
 
-  bool operator==(const AddressList& other) const {
-    return std::tie(endpoints_, dns_aliases_) ==
-           std::tie(other.endpoints_, other.dns_aliases_);
-  }
-  bool operator!=(const AddressList& other) const { return !(*this == other); }
+  friend bool operator==(const AddressList&, const AddressList&) = default;
 
   // Sets the first entry of `dns_aliases_` to the literal of the first IP
   // address on the list. Assumes that `dns_aliases_` is empty.
@@ -75,7 +71,7 @@ class NET_EXPORT AddressList {
 
   // Creates a value representation of the address list, appropriate for
   // inclusion in a NetLog.
-  base::Value NetLogParams() const;
+  base::Value::Dict NetLogParams() const;
 
   // Deduplicates the stored addresses while otherwise preserving their order.
   void Deduplicate();

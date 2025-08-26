@@ -1,17 +1,28 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/installed_loader.h"
 
 #include "base/test/metrics/histogram_tester.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
-#include "chrome/browser/extensions/permissions_updater.h"
-#include "chrome/browser/extensions/scripting_permissions_modifier.h"
+#include "chrome/browser/extensions/extension_service_user_test_base.h"
+#include "chrome/browser/extensions/permissions/permissions_updater.h"
+#include "chrome/browser/extensions/permissions/scripting_permissions_modifier.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/test/base/testing_profile.h"
+#include "content/public/test/browser_task_environment.h"
+#include "extensions/browser/extension_registrar.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/ash/profiles/profile_helper.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
 
@@ -41,6 +52,9 @@ struct HostPermissionsMetricsTestParams {
   // The host permissions the extension requests.
   std::vector<std::string> requested_host_permissions;
 
+  // Whether the extension requests activeTab.
+  bool requests_active_tab = false;
+
   // Whether the user enables host permission withholding for the extension.
   bool has_withholding_permissions = false;
 
@@ -59,9 +73,9 @@ struct HostPermissionsMetricsTestParams {
 
 }  // namespace
 
-class InstalledLoaderUnitTest : public ExtensionServiceTestBase {
+class InstalledLoaderUnitTest : public ExtensionServiceUserTestBase {
  public:
-  InstalledLoaderUnitTest() {}
+  InstalledLoaderUnitTest() = default;
 
   InstalledLoaderUnitTest(const InstalledLoaderUnitTest&) = delete;
   InstalledLoaderUnitTest& operator=(const InstalledLoaderUnitTest&) = delete;
@@ -69,27 +83,36 @@ class InstalledLoaderUnitTest : public ExtensionServiceTestBase {
   ~InstalledLoaderUnitTest() override = default;
 
   void SetUp() override {
-    ExtensionServiceTestBase::SetUp();
+    ExtensionServiceUserTestBase::SetUp();
     InitializeEmptyExtensionService();
   }
 
   const Extension* AddExtension(const std::vector<std::string>& permissions,
-                                mojom::ManifestLocation location);
+                                mojom::ManifestLocation location,
+                                bool requests_active_tab = false);
 
   void RunHostPermissionsMetricsTest(HostPermissionsMetricsTestParams params);
+
+  void RunEmitUserHistogramsTest(int nonuser_expected_total_count,
+                                 int user_expected_total_count);
 };
 
 const Extension* InstalledLoaderUnitTest::AddExtension(
-    const std::vector<std::string>& permissions,
-    mojom::ManifestLocation location) {
-  scoped_refptr<const Extension> extension = ExtensionBuilder("test")
-                                                 .AddPermissions(permissions)
-                                                 .SetLocation(location)
-                                                 .Build();
+    const std::vector<std::string>& host_permissions,
+    mojom::ManifestLocation location,
+    bool requests_active_tab) {
+  ExtensionBuilder builder("test");
+  builder.AddHostPermissions(host_permissions);
+  builder.SetLocation(location);
+  if (requests_active_tab) {
+    builder.AddAPIPermission("activeTab");
+  }
+
+  scoped_refptr<const Extension> extension = builder.Build();
   PermissionsUpdater updater(profile());
   updater.InitializePermissions(extension.get());
   updater.GrantActivePermissions(extension.get());
-  service()->AddExtension(extension.get());
+  registrar()->AddExtension(extension);
 
   return extension.get();
 }
@@ -97,7 +120,8 @@ const Extension* InstalledLoaderUnitTest::AddExtension(
 void InstalledLoaderUnitTest::RunHostPermissionsMetricsTest(
     HostPermissionsMetricsTestParams params) {
   const Extension* extension =
-      AddExtension(params.requested_host_permissions, params.manifest_location);
+      AddExtension(params.requested_host_permissions, params.manifest_location,
+                   params.requests_active_tab);
 
   ScriptingPermissionsModifier modifier(profile(), extension);
   if (params.has_withholding_permissions) {
@@ -112,7 +136,7 @@ void InstalledLoaderUnitTest::RunHostPermissionsMetricsTest(
   }
 
   base::HistogramTester histograms;
-  InstalledLoader loader(service());
+  InstalledLoader loader(profile());
   loader.RecordExtensionsMetricsForTesting();
 
   histograms.ExpectUniqueSample(kGrantedAccessHistogram,
@@ -138,12 +162,35 @@ void InstalledLoaderUnitTest::RunHostPermissionsMetricsTest(
   }
 }
 
+// Test that certain histograms are emitted for user and non-user profiles
+// (users for ChromeOS Ash).
+void InstalledLoaderUnitTest::RunEmitUserHistogramsTest(
+    int nonuser_expected_total_count,
+    int user_expected_total_count) {
+  base::HistogramTester histograms;
+  InstalledLoader loader(profile());
+  loader.RecordExtensionsIncrementedMetricsForTesting(profile());
+
+  histograms.ExpectTotalCount("Extensions.LoadAllTime2", 1);
+  histograms.ExpectTotalCount("Extensions.LoadAll", 1);
+  histograms.ExpectTotalCount("Extensions.Disabled", 1);
+  histograms.ExpectTotalCount("Extensions.LoadAllTime2.NonUser",
+                              nonuser_expected_total_count);
+  histograms.ExpectTotalCount("Extensions.LoadAllTime2.User",
+                              user_expected_total_count);
+  histograms.ExpectTotalCount("Extensions.LoadAll2", user_expected_total_count);
+  histograms.ExpectTotalCount("Extensions.Disabled2",
+                              user_expected_total_count);
+  histograms.ExpectTotalCount("Extensions.ManifestVersion2",
+                              user_expected_total_count);
+}
+
 TEST_F(InstalledLoaderUnitTest,
        RuntimeHostPermissions_Metrics_HasWithheldHosts_False) {
   AddExtension({"<all_urls>"}, kManifestInternal);
 
   base::HistogramTester histograms;
-  InstalledLoader loader(service());
+  InstalledLoader loader(profile());
   loader.RecordExtensionsMetricsForTesting();
 
   // The extension didn't have withheld hosts, so a single `false` record
@@ -161,7 +208,7 @@ TEST_F(InstalledLoaderUnitTest,
       .SetWithholdHostPermissions(true);
 
   base::HistogramTester histograms;
-  InstalledLoader loader(service());
+  InstalledLoader loader(profile());
   loader.RecordExtensionsMetricsForTesting();
 
   // The extension had withheld hosts, so a single `true` record should be
@@ -183,7 +230,7 @@ TEST_F(InstalledLoaderUnitTest,
   modifier.GrantHostPermission(GURL("https://chromium.org/"));
 
   base::HistogramTester histograms;
-  InstalledLoader loader(service());
+  InstalledLoader loader(profile());
   loader.RecordExtensionsMetricsForTesting();
 
   histograms.ExpectUniqueSample(kHasWithheldHostsHistogram, true, 1);
@@ -382,11 +429,36 @@ TEST_F(InstalledLoaderUnitTest,
   params.manifest_location = kManifestInternal;
   // The extension has activeTab API permission and no host permissions, so host
   // permission access is on active tab only.
-  params.requested_host_permissions = {"activeTab"};
+  params.requests_active_tab = true;
   params.expected_access_level = HostPermissionsAccess::kOnActiveTabOnly;
   params.request_scope = HostPermissionsMetricsTestParams::RequestScope::kNone;
 
   RunHostPermissionsMetricsTest(params);
+}
+
+// TODO(crbug.com/40878021): After deleting the deprecated unincremented
+// histograms, consider modifying these to becomes less of change detectors in
+// metrics being modified.
+// Tests that some histograms that only emit for profiles that can use
+// non-component extensions emit as expected.
+TEST_F(InstalledLoaderUnitTest, UserMetrics_UserMetricsEmitForRegularUser) {
+  ASSERT_TRUE(AddExtension({"<all_urls>"}, kManifestInternal));
+  ASSERT_NO_FATAL_FAILURE(MaybeSetUpTestUser(/*is_guest=*/false));
+
+  RunEmitUserHistogramsTest(
+      /*nonuser_expected_total_count=*/0,
+      /*user_expected_total_count=*/1);
+}
+
+// Tests that some histograms that only emit for profiles that can use
+// non-component extensions do not emit as expected.
+TEST_F(InstalledLoaderUnitTest, UserMetrics_UserMetricsDoNotEmitForGuestUser) {
+  ASSERT_TRUE(AddExtension({"<all_urls>"}, kManifestInternal));
+  ASSERT_NO_FATAL_FAILURE(MaybeSetUpTestUser(/*is_guest=*/true));
+
+  RunEmitUserHistogramsTest(
+      /*nonuser_expected_total_count=*/1,
+      /*user_expected_total_count=*/0);
 }
 
 }  // namespace extensions

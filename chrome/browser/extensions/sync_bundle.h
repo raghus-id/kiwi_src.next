@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,10 @@
 #include "components/sync/model/sync_change.h"
 #include "components/sync/model/sync_change_processor.h"
 #include "components/sync/model/sync_data.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_id.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
 
@@ -59,7 +62,7 @@ class SyncBundle {
   // the list of synced extensions.
   void ApplySyncData(const ExtensionSyncData& extension_sync_data);
 
-  // Checks if there is pending sync data for the extension with the given |id|,
+  // Checks if there is pending sync data for the extension with the given `id`,
   // i.e. data to be sent to the sync server until the extension is installed
   // locally.
   bool HasPendingExtensionData(const ExtensionId& id) const;

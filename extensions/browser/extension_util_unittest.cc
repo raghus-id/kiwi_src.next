@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
+#include "build/android_buildflags.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/test/browser_task_environment.h"
@@ -44,14 +45,14 @@ TEST(ExtensionUtilTest, MapUrlToLocalFilePath) {
 
   // Valid resources return a valid path.
   base::FilePath valid_path;
-  GURL valid_url = app->GetResourceURL("manifest.json");
+  GURL valid_url = app->ResolveExtensionURL("manifest.json");
   EXPECT_TRUE(util::MapUrlToLocalFilePath(
       &extensions, valid_url, true /* use_blocking_api */, &valid_path));
   EXPECT_FALSE(valid_path.empty());
 
   // A file must exist to be mapped to a path using the blocking API.
   base::FilePath does_not_exist_path;
-  GURL does_not_exist_url = app->GetResourceURL("does-not-exist.html");
+  GURL does_not_exist_url = app->ResolveExtensionURL("does-not-exist.html");
   EXPECT_FALSE(util::MapUrlToLocalFilePath(&extensions, does_not_exist_url,
                                            true /* use_blocking_api */,
                                            &does_not_exist_path));
@@ -65,7 +66,14 @@ TEST(ExtensionUtilTest, MapUrlToLocalFilePath) {
   EXPECT_FALSE(does_not_exist_path.empty());
 }
 
-TEST(ExtensionUtilTest, ExtensionIdForSiteInstance) {
+// TODO(https://crbug.com/356905053):Strict site isolation is not enabled on
+// Android, so this test is disabled on desktop android.
+#if BUILDFLAG(IS_DESKTOP_ANDROID)
+#define MAYBE_ExtensionIdForSiteInstance DISABLED_ExtensionIdForSiteInstance
+#else
+#define MAYBE_ExtensionIdForSiteInstance ExtensionIdForSiteInstance
+#endif
+TEST(ExtensionUtilTest, MAYBE_ExtensionIdForSiteInstance) {
   content::BrowserTaskEnvironment test_environment;
   content::TestBrowserContext test_context;
 

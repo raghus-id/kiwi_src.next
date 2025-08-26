@@ -1,30 +1,31 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
 
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.UnownedUserDataKey;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.UnownedUserDataSupplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.ui.base.WindowAndroid;
 
 /**
- * A {@link UnownedUserDataSupplier} which manages the supplier and UnownedUserData for a
- * {@link TabModelSelector}.
+ * A {@link UnownedUserDataSupplier} which manages the supplier and UnownedUserData for a {@link
+ * TabModelSelector}.
  */
+@NullMarked
 public class TabModelSelectorSupplier extends UnownedUserDataSupplier<TabModelSelector> {
     private static final UnownedUserDataKey<TabModelSelectorSupplier> KEY =
-            new UnownedUserDataKey<TabModelSelectorSupplier>(TabModelSelectorSupplier.class);
-    private static ObservableSupplierImpl<TabModelSelector> sInstanceForTesting;
+            new UnownedUserDataKey<>(TabModelSelectorSupplier.class);
+    private static @Nullable ObservableSupplierImpl<TabModelSelector> sInstanceForTesting;
 
     /** Return {@link TabModelSelector} supplier associated with the given {@link WindowAndroid}. */
-    public static ObservableSupplier<TabModelSelector> from(WindowAndroid windowAndroid) {
+    public static @Nullable ObservableSupplier<TabModelSelector> from(WindowAndroid windowAndroid) {
         if (sInstanceForTesting != null) return sInstanceForTesting;
         return KEY.retrieveDataFromHost(windowAndroid.getUnownedUserDataHost());
     }
@@ -51,9 +52,9 @@ public class TabModelSelectorSupplier extends UnownedUserDataSupplier<TabModelSe
     }
 
     /** Sets an instance for testing. */
-    @VisibleForTesting
     public static void setInstanceForTesting(TabModelSelector tabModelSelector) {
         sInstanceForTesting = new ObservableSupplierImpl<>();
         sInstanceForTesting.set(tabModelSelector);
+        ResettersForTesting.register(() -> sInstanceForTesting = null);
     }
 }

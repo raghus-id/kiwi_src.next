@@ -1,14 +1,20 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
 
 #include "net/http/http_auth_gssapi_posix.h"
 
 #include <memory>
+#include <string_view>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
 #include "base/check.h"
+#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/native_library.h"
 #include "base/path_service.h"
@@ -268,9 +274,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_FirstRound) {
   // The first round should just consist of an unadorned "Negotiate" header.
   test::MockGSSAPILibrary mock_library;
   HttpAuthGSSAPI auth_gssapi(&mock_library, CHROME_GSS_SPNEGO_MECH_OID_DESC);
-  std::string challenge_text = "Negotiate";
-  HttpAuthChallengeTokenizer challenge(challenge_text.begin(),
-                                       challenge_text.end());
+  HttpAuthChallengeTokenizer challenge("Negotiate");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_ACCEPT,
             auth_gssapi.ParseChallenge(&challenge));
 }
@@ -281,9 +285,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_TwoRounds) {
   // have a valid base64 token associated with it.
   test::MockGSSAPILibrary mock_library;
   HttpAuthGSSAPI auth_gssapi(&mock_library, CHROME_GSS_SPNEGO_MECH_OID_DESC);
-  std::string first_challenge_text = "Negotiate";
-  HttpAuthChallengeTokenizer first_challenge(first_challenge_text.begin(),
-                                             first_challenge_text.end());
+  HttpAuthChallengeTokenizer first_challenge("Negotiate");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_ACCEPT,
             auth_gssapi.ParseChallenge(&first_challenge));
 
@@ -295,9 +297,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_TwoRounds) {
                     &auth_token, NetLogWithSource::Make(NetLogSourceType::NONE),
                     base::BindOnce(&UnexpectedCallback)));
 
-  std::string second_challenge_text = "Negotiate Zm9vYmFy";
-  HttpAuthChallengeTokenizer second_challenge(second_challenge_text.begin(),
-                                              second_challenge_text.end());
+  HttpAuthChallengeTokenizer second_challenge("Negotiate Zm9vYmFy");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_ACCEPT,
             auth_gssapi.ParseChallenge(&second_challenge));
 
@@ -311,7 +311,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_TwoRounds) {
       NetLogEventPhase::END);
   ASSERT_LT(offset, entries.size());
   const std::string* source =
-      entries[offset].params.FindStringPath("context.source.name");
+      entries[offset].params.FindStringByDottedPath("context.source.name");
   ASSERT_TRUE(source);
   EXPECT_EQ("localhost", *source);
 }
@@ -321,9 +321,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_UnexpectedTokenFirstRound) {
   // should be treated as an invalid challenge from the server.
   test::MockGSSAPILibrary mock_library;
   HttpAuthGSSAPI auth_gssapi(&mock_library, CHROME_GSS_SPNEGO_MECH_OID_DESC);
-  std::string challenge_text = "Negotiate Zm9vYmFy";
-  HttpAuthChallengeTokenizer challenge(challenge_text.begin(),
-                                       challenge_text.end());
+  HttpAuthChallengeTokenizer challenge("Negotiate Zm9vYmFy");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_INVALID,
             auth_gssapi.ParseChallenge(&challenge));
 }
@@ -333,9 +331,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_MissingTokenSecondRound) {
   // an authentication challenge rejection from the server or proxy.
   test::MockGSSAPILibrary mock_library;
   HttpAuthGSSAPI auth_gssapi(&mock_library, CHROME_GSS_SPNEGO_MECH_OID_DESC);
-  std::string first_challenge_text = "Negotiate";
-  HttpAuthChallengeTokenizer first_challenge(first_challenge_text.begin(),
-                                             first_challenge_text.end());
+  HttpAuthChallengeTokenizer first_challenge("Negotiate");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_ACCEPT,
             auth_gssapi.ParseChallenge(&first_challenge));
 
@@ -345,9 +341,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_MissingTokenSecondRound) {
             auth_gssapi.GenerateAuthToken(
                 nullptr, "HTTP/intranet.google.com", std::string(), &auth_token,
                 NetLogWithSource(), base::BindOnce(&UnexpectedCallback)));
-  std::string second_challenge_text = "Negotiate";
-  HttpAuthChallengeTokenizer second_challenge(second_challenge_text.begin(),
-                                              second_challenge_text.end());
+  HttpAuthChallengeTokenizer second_challenge("Negotiate");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_REJECT,
             auth_gssapi.ParseChallenge(&second_challenge));
 }
@@ -357,9 +351,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_NonBase64EncodedToken) {
   // be treated as an invalid challenge.
   test::MockGSSAPILibrary mock_library;
   HttpAuthGSSAPI auth_gssapi(&mock_library, CHROME_GSS_SPNEGO_MECH_OID_DESC);
-  std::string first_challenge_text = "Negotiate";
-  HttpAuthChallengeTokenizer first_challenge(first_challenge_text.begin(),
-                                             first_challenge_text.end());
+  HttpAuthChallengeTokenizer first_challenge("Negotiate");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_ACCEPT,
             auth_gssapi.ParseChallenge(&first_challenge));
 
@@ -369,9 +361,7 @@ TEST(HttpAuthGSSAPITest, ParseChallenge_NonBase64EncodedToken) {
             auth_gssapi.GenerateAuthToken(
                 nullptr, "HTTP/intranet.google.com", std::string(), &auth_token,
                 NetLogWithSource(), base::BindOnce(&UnexpectedCallback)));
-  std::string second_challenge_text = "Negotiate =happyjoy=";
-  HttpAuthChallengeTokenizer second_challenge(second_challenge_text.begin(),
-                                              second_challenge_text.end());
+  HttpAuthChallengeTokenizer second_challenge("Negotiate =happyjoy=");
   EXPECT_EQ(HttpAuth::AUTHORIZATION_RESULT_INVALID,
             auth_gssapi.ParseChallenge(&second_challenge));
 }
